@@ -15,10 +15,10 @@ int main(int argc, char * argv[]){
 
     for (int i = 2; i < argc; i++) {
         strcat(argv[1], " ");
-        strcat(argv[1], argv[2]);
+        strcat(argv[1], argv[i]);
     }
 
-    if(!CreateProcess( NULL, argv[1], NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+    if(!CreateProcess(NULL, argv[1], NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
         puts("create process failed");
         return 0;
     }
