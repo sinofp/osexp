@@ -22,7 +22,7 @@
     } while (0)
 
 struct shared_memory {
-    int read_index, write_index;
+    int read_index, write_index, color;  // have a colorful day!
     char buf[BUF_SIZE][BUF_LENGTH];
 };
 
@@ -79,7 +79,7 @@ int randint(int maxint) {
 }
 
 int producer(int no) {
-    printf("producer %d created.\n", no);
+    printf("\033[0;31mproducer %d created.\033[0m\n", no);
     open_signals();
 
     struct timespec tp;
@@ -88,9 +88,10 @@ int producer(int no) {
         sem_wait(signals.emptySemaphore);
         sem_wait(signals.mutex);
         clock_gettime(CLOCK_REALTIME, &tp);
+        signals.sm->color = 30 + (signals.sm->color + 1) % 8; // [30, 37]
         sprintf(signals.sm->buf[signals.sm->write_index],
-                "生产者%d第%d次写: %10ld秒%9ld微秒", no, i + 1, tp.tv_sec,
-                tp.tv_nsec);
+                "\033[1;%dm生产者%d第%d次写: %10ld秒%9ld微秒\033[0m",
+                signals.sm->color, no, i + 1, tp.tv_sec, tp.tv_nsec);
         signals.sm->write_index = (signals.sm->write_index + 1) % BUF_SIZE;
         printsm(signals.sm);
         sem_post(signals.mutex);
@@ -101,14 +102,14 @@ int producer(int no) {
 }
 
 int consumer(int no) {
-    printf("consumer %d created.\n", no);
+    printf("\033[0;31mconsumer %d created.\033[0m\n", no);
 
     open_signals();
     for (int i = 0; i < 4; ++i) {
         sleep(randint(5));
         sem_wait(signals.fullSemaphore);
         sem_wait(signals.mutex);
-        printf("消费者%d第%d次读: %s\n", no, i + 1,
+        printf("\033[0;31m消费者%d第%d次读:\033[0m %s\n", no, i + 1,
                signals.sm->buf[signals.sm->read_index]);
         memset(signals.sm->buf[signals.sm->read_index], 0,
                sizeof(signals.sm->buf[0]));
