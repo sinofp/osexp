@@ -8,11 +8,13 @@
 #define EMPTY_SEM "my empty semaphore"
 #define FILE_NAME "my map file"
 #define MUTEX_NAME "my mutex"
-#define IFNULLPRTEXIT(VALUE, ERR_MSG)             \
-    if (NULL == VALUE) {                          \
-        printf(ERR_MSG " %d.\n", GetLastError()); \
-        exit(EXIT_FAILURE);                       \
-    }
+#define IFNULLPRTEXIT(VALUE, ERR_MSG)                 \
+    do {                                              \
+        if (NULL == VALUE) {                          \
+            printf(ERR_MSG " %d.\n", GetLastError()); \
+            exit(EXIT_FAILURE);                       \
+        }                                             \
+    } while (0)
 
 struct shared_memory {
     int read_index, write_index;
@@ -48,23 +50,23 @@ struct sync_signals {
 void open_signals() {
     // Shared Memeory
     signals.hMapFile = OpenFileMapping(FILE_MAP_WRITE, FALSE, FILE_NAME);
-    IFNULLPRTEXIT(signals.hMapFile, "Could not open file mapping object")
+    IFNULLPRTEXIT(signals.hMapFile, "Could not open file mapping object");
 
     signals.sm = (struct shared_memory *)MapViewOfFile(
         signals.hMapFile, FILE_MAP_WRITE, 0, 0, sizeof(struct shared_memory));
-    IFNULLPRTEXIT(signals.sm, "Could not map view of file")
+    IFNULLPRTEXIT(signals.sm, "Could not map view of file");
 
     // Semaphore
     signals.emptySemaphore =
         OpenSemaphore(SEMAPHORE_ALL_ACCESS, TRUE, EMPTY_SEM);
-    IFNULLPRTEXIT(signals.emptySemaphore, "OpenEmptySemaphore error:")
+    IFNULLPRTEXIT(signals.emptySemaphore, "OpenEmptySemaphore error:");
 
     signals.fullSemaphore = OpenSemaphore(SEMAPHORE_ALL_ACCESS, TRUE, FULL_SEM);
-    IFNULLPRTEXIT(signals.fullSemaphore, "OpenFullSemaphore error:")
+    IFNULLPRTEXIT(signals.fullSemaphore, "OpenFullSemaphore error:");
 
     // mutex
     signals.mutex = OpenMutex(MUTEX_ALL_ACCESS, TRUE, MUTEX_NAME);
-    IFNULLPRTEXIT(signals.mutex, "OpenMutex error:")
+    IFNULLPRTEXIT(signals.mutex, "OpenMutex error:");
 }
 
 void close_signals() {
@@ -125,33 +127,47 @@ int main(int argc, char *argv[]) {
         system("chcp 65001");
         puts("main");
         // 创建共享内存
-        HANDLE hMapFile;
-        char *pBuf;
-
-        hMapFile =
+        signals.hMapFile =
             CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0,
                               sizeof(struct shared_memory), FILE_NAME);
-        IFNULLPRTEXIT(hMapFile, "Could not create file mapping object")
+        IFNULLPRTEXIT(signals.hMapFile, "Could not create file mapping object");
 
-        pBuf = (char *)MapViewOfFile(hMapFile, FILE_MAP_ALL_ACCESS, 0, 0,
-                                     sizeof(struct shared_memory));
-        IFNULLPRTEXIT(pBuf, "Could not map view of file")
+        signals.sm = (struct shared_memory *)MapViewOfFile(
+            signals.hMapFile, FILE_MAP_ALL_ACCESS, 0, 0,
+            sizeof(struct shared_memory));
+        IFNULLPRTEXIT(signals.sm, "Could not map view of file");
 
         // 清空共享内存（主要是让index=0）
-        ZeroMemory(pBuf, sizeof pBuf);
+        ZeroMemory(signals.sm, sizeof(struct shared_memory));
 
         // Semaphore
-        HANDLE emptySemaphore = CreateSemaphore(NULL, 3, 3, EMPTY_SEM);
-        IFNULLPRTEXIT(emptySemaphore, "CreateEmptySemaphore error:")
-        HANDLE fullSemaphore = CreateSemaphore(NULL, 0, 3, FULL_SEM);
-        IFNULLPRTEXIT(fullSemaphore, "CreateFullSemaphore error:")
+        signals.emptySemaphore = CreateSemaphore(NULL, 3, 3, EMPTY_SEM);
+        IFNULLPRTEXIT(signals.emptySemaphore, "CreateEmptySemaphore error:");
+        signals.fullSemaphore = CreateSemaphore(NULL, 0, 3, FULL_SEM);
+        IFNULLPRTEXIT(signals.fullSemaphore, "CreateFullSemaphore error:");
 
         // MUTEX
-        HANDLE mutex = CreateMutex(NULL, FALSE, MUTEX_NAME);
-        IFNULLPRTEXIT(mutex, "CreateMutex error:")
+        signals.mutex = CreateMutex(NULL, FALSE, MUTEX_NAME);
+        IFNULLPRTEXIT(signals.mutex, "CreateMutex error:");
 
         // 创建进程
         HANDLE processes[5];
+        for (int i = 0; i < 3; i++) {
+            // 三个消费者
+            STARTUPINFO si;
+            PROCESS_INFORMATION pi;
+            memset(&si, 0, sizeof si);
+            memset(&pi, 0, sizeof pi);
+            si.cb = sizeof si;
+            char cmd[50];
+            sprintf(cmd, "./pc consumer %d", i);
+            if (!CreateProcess(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si,
+                               &pi)) {
+                printf("create consumer process %d failed\n", i);
+                return 1;
+            }
+            processes[2 + i] = pi.hProcess;
+        }
         for (int i = 0; i < 2; i++) {
             // 两个生产者
             STARTUPINFO si;
@@ -169,34 +185,13 @@ int main(int argc, char *argv[]) {
             processes[i] = pi.hProcess;
         }
 
-        for (int i = 0; i < 3; i++) {
-            // 三个消费者
-            STARTUPINFO si;
-            PROCESS_INFORMATION pi;
-            memset(&si, 0, sizeof si);
-            memset(&pi, 0, sizeof pi);
-            si.cb = sizeof si;
-            char cmd[50];
-            sprintf(cmd, "./pc consumer %d", i);
-            if (!CreateProcess(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si,
-                               &pi)) {
-                printf("create consumer process %d failed\n", i);
-                return 1;
-            }
-            processes[2 + i] = pi.hProcess;
-        }
-
         // 等待所有进程结束
         WaitForMultipleObjects(5, processes, TRUE, INFINITE);
         for (int i = 0; i < 5; i++) {
             CloseHandle(processes[i]);
         }
 
-        UnmapViewOfFile(pBuf);
-        CloseHandle(hMapFile);
-        CloseHandle(emptySemaphore);
-        CloseHandle(fullSemaphore);
-        CloseHandle(mutex);
+        close_signals();
         puts("This is the end.");
     } else if (argc > 2) {
         if (!strcmp("producer", argv[1])) {
