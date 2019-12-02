@@ -70,6 +70,7 @@ void close_signals() {
     sem_unlink(MUTEX);
     sem_unlink(FULL_SEM);
     sem_unlink(EMPTY_SEM);
+    shm_unlink(SHM_NAME);
     munmap((void *)signals.sm, sizeof(struct shared_memory));
 }
 
