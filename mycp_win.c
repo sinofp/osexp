@@ -19,6 +19,7 @@ void ErrorDescription(HRESULT hr) {
 
 void dfs(char from[], char to[]) {
     CreateDirectory(to, NULL);
+    SetFileAttributes(to, GetFileAttributes(from));
 
     if (to[strlen(to) - 1] != '\\') strcat(to, "\\");
     if (from[strlen(from) - 1] != '\\') strcat(from, "\\");
@@ -40,7 +41,7 @@ void dfs(char from[], char to[]) {
     while (!finished) {
         if (strcmp(".", file_data.cFileName) &&
             strcmp("..", file_data.cFileName)) {
-            if (FILE_ATTRIBUTE_DIRECTORY == file_data.dwFileAttributes) {
+            if (FILE_ATTRIBUTE_DIRECTORY & file_data.dwFileAttributes) {
                 sprintf(next_from, "%s%s", from, file_data.cFileName);
                 sprintf(next_to, "%s%s", to, file_data.cFileName);
 
@@ -48,7 +49,6 @@ void dfs(char from[], char to[]) {
             } else {
                 sprintf(now_path, "%s%s", from, file_data.cFileName);
                 sprintf(new_path, "%s%s", to, file_data.cFileName);
-                // 拒绝访问的也要复制么？
                 if (!CopyFile(now_path, new_path, FALSE)) {
                     printf("Can't copy! %s %d\n", now_path, GetLastError());
                     ErrorDescription(GetLastError());
