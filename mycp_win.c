@@ -3,20 +3,6 @@
 #include <tchar.h>
 #include <windows.h>
 
-void ErrorDescription(HRESULT hr) {
-    if (FACILITY_WINDOWS == HRESULT_FACILITY(hr)) hr = HRESULT_CODE(hr);
-    TCHAR* szErrMsg;
-
-    if (FormatMessage(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL,
-            hr, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&szErrMsg, 0,
-            NULL) != 0) {
-        _tprintf(TEXT("%s"), szErrMsg);
-        LocalFree(szErrMsg);
-    } else
-        _tprintf(TEXT("[Could not find a description for error # %#x.]\n"), hr);
-}
-
 void dfs(char from[], char to[]) {
     CreateDirectory(to, NULL);
     SetFileAttributes(to, GetFileAttributes(from));
@@ -46,13 +32,33 @@ void dfs(char from[], char to[]) {
                 sprintf(next_to, "%s%s", to, file_data.cFileName);
 
                 dfs(next_from, next_to);
+
+                // 根据原文件夹设置新文件夹的修改时间，
+                // 因为在新文件夹里复制了别的文件，导致新文件夹修改时间是现在
+                FILETIME creationTime, accessTime, writeTime;
+
+                HANDLE nFromHandle =
+                    CreateFile(next_from, GENERIC_READ, 0, 0, OPEN_EXISTING,
+                               FILE_FLAG_BACKUP_SEMANTICS, 0);
+                if (INVALID_HANDLE_VALUE == nFromHandle)
+                    printf("Can't open %s! %d\n", next_from, GetLastError());
+                GetFileTime(nFromHandle, &creationTime, &accessTime,
+                            &writeTime);
+
+                HANDLE nToHandle =
+                    CreateFile(next_to, FILE_WRITE_ATTRIBUTES, 0, 0,
+                               OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+                if (INVALID_HANDLE_VALUE == nToHandle)
+                    printf("Can't open %s! %d\n", next_to, GetLastError());
+                SetFileTime(nToHandle, &creationTime, &accessTime, &writeTime);
+
+                CloseHandle(nFromHandle);
+                CloseHandle(nToHandle);
             } else {
                 sprintf(now_path, "%s%s", from, file_data.cFileName);
                 sprintf(new_path, "%s%s", to, file_data.cFileName);
-                if (!CopyFile(now_path, new_path, FALSE)) {
+                if (!CopyFile(now_path, new_path, FALSE))
                     printf("Can't copy! %s %d\n", now_path, GetLastError());
-                    ErrorDescription(GetLastError());
-                }
             }
         }
 
