@@ -1,7 +1,23 @@
 #include <stdio.h>
 #include <string.h>
-#include <tchar.h>
 #include <windows.h>
+
+void set_dir_time(char from[], char to[]) {
+    FILETIME creationTime, accessTime, writeTime;
+    HANDLE nFromHandle = CreateFile(from, GENERIC_READ, 0, 0, OPEN_EXISTING,
+                                    FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == nFromHandle)
+        printf("Can't open %s! %d\n", from, GetLastError());
+    GetFileTime(nFromHandle, &creationTime, &accessTime, &writeTime);
+
+    HANDLE nToHandle = CreateFile(to, FILE_WRITE_ATTRIBUTES, 0, 0,
+                                  OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+    if (INVALID_HANDLE_VALUE == nToHandle)
+        printf("Can't open %s! %d\n", to, GetLastError());
+    SetFileTime(nToHandle, &creationTime, &accessTime, &writeTime);
+    CloseHandle(nFromHandle);
+    CloseHandle(nToHandle);
+}
 
 void dfs(char from[], char to[]) {
     CreateDirectory(to, NULL);
@@ -35,25 +51,7 @@ void dfs(char from[], char to[]) {
 
                 // 根据原文件夹设置新文件夹的修改时间，
                 // 因为在新文件夹里复制了别的文件，导致新文件夹修改时间是现在
-                FILETIME creationTime, accessTime, writeTime;
-
-                HANDLE nFromHandle =
-                    CreateFile(next_from, GENERIC_READ, 0, 0, OPEN_EXISTING,
-                               FILE_FLAG_BACKUP_SEMANTICS, 0);
-                if (INVALID_HANDLE_VALUE == nFromHandle)
-                    printf("Can't open %s! %d\n", next_from, GetLastError());
-                GetFileTime(nFromHandle, &creationTime, &accessTime,
-                            &writeTime);
-
-                HANDLE nToHandle =
-                    CreateFile(next_to, FILE_WRITE_ATTRIBUTES, 0, 0,
-                               OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-                if (INVALID_HANDLE_VALUE == nToHandle)
-                    printf("Can't open %s! %d\n", next_to, GetLastError());
-                SetFileTime(nToHandle, &creationTime, &accessTime, &writeTime);
-
-                CloseHandle(nFromHandle);
-                CloseHandle(nToHandle);
+                set_dir_time(next_from, next_to);
             } else {
                 sprintf(now_path, "%s%s", from, file_data.cFileName);
                 sprintf(new_path, "%s%s", to, file_data.cFileName);
@@ -80,6 +78,6 @@ int main(int argc, char* argv[]) {
 
     printf("from: %s to: %s\n", from, to);
     dfs(from, to);
-
+    set_dir_time(from, to);
     return 0;
 }
