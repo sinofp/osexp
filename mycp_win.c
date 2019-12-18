@@ -4,8 +4,9 @@
 
 void set_dir_time(char from[], char to[]) {
     FILETIME creationTime, accessTime, writeTime;
-    HANDLE nFromHandle = CreateFile(from, GENERIC_READ, 0, 0, OPEN_EXISTING,
-                                    FILE_FLAG_BACKUP_SEMANTICS, 0);
+    HANDLE nFromHandle =
+        CreateFile(from, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING,
+                   FILE_FLAG_BACKUP_SEMANTICS, 0);
     if (INVALID_HANDLE_VALUE == nFromHandle)
         printf("Can't open %s! %d\n", from, GetLastError());
     GetFileTime(nFromHandle, &creationTime, &accessTime, &writeTime);
