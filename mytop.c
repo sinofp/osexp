@@ -44,7 +44,7 @@ void performance_info() {
     printf("内核未分页数%d\n", perfinfo.PageSize);
     printf("页大小%dB\n", perfinfo.PageSize);
     printf("Handle数量%d\n", perfinfo.HandleCount);
-    printf("处理器数量%d\n", perfinfo.ProcessCount);
+    printf("进程数量%d\n", perfinfo.ProcessCount);
     printf("线程数量%d\n", perfinfo.ThreadCount);
 
     puts("");
@@ -179,6 +179,13 @@ void query_process_info() {
 
             addr = (PBYTE)addr + mem_b_info.RegionSize;
         }
+    }
+
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(process, &pmc, sizeof(pmc))) {
+        printf("工作集大小：%dB\n", pmc.WorkingSetSize);
+    } else {
+        printf("GetProcessMemoryInfo %d.\n", GetLastError());
     }
 }
 
